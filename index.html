@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <title>Чат на WebSocket</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; }
+    #chat { border: 1px solid #ccc; height: 300px; overflow-y: auto; padding: 10px; }
+    .msg { margin: 3px 0; }
+    .system { margin: 3px 0; color: #555; font-style: italic; }
+    #messageInput { width: 75%; padding: 8px; }
+    #sendBtn { padding: 8px 12px; }
+  </style>
+</head>
+<body>
+  <h2>Чат на WebSocket</h2>
+  <div id="chat"></div>
+  <input id="messageInput" placeholder="Введіть повідомлення" />
+  <button id="sendBtn">Надіслати</button>
+
+  <script>
+
+  const originalTitle = "Чат на WebSocket";
+  let socket;
+
+  function addSystem(text) {
+    const chat = document.getElementById('chat');
+    const div = document.createElement('div');
+    div.className = 'system';
+    div.textContent = text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function addMessage(from, text) {
+    const chat = document.getElementById('chat');
+    const div = document.createElement('div');
+    div.className = 'msg';
+    div.textContent = from + ': ' + text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function connect() {
+    socket = new WebSocket('ws://localhost:3000');
+
+    socket.onopen = () => {
+      addSystem('Підключено до сервера');
+    };
+
+    socket.onmessage = (event) => {
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (e) {
+        data = { type: 'chat', from: 'Користувач', text: event.data };
+      }
+
+      if (data.type === 'system') {
+        addSystem(data.text);
+      } else if (data.type === 'chat') {
+        addMessage(data.from || 'Користувач', data.text);
+      }
+
+      // сповіщення для неактивної вкладки
+      if (document.hidden && data.type === 'chat') {
+        document.title = "📩 Нове повідомлення в чаті!";
+        console.log("СПОВІЩЕННЯ: вкладка неактивна, прийшло нове повідомлення");
+      }
+    };
+
+    socket.onclose = () => {
+      addSystem('З’єднання втрачено, пробуємо перепідключитися...');
+      setTimeout(connect, 2000);
+    };
+
+    socket.onerror = (err) => {
+      console.error('Помилка WebSocket:', err);
+      addSystem('Сталася помилка WebSocket');
+    };
+  }
+
+  function sendMessage() {
+    const input = document.getElementById('messageInput');
+    const text = input.value.trim();
+    if (!text) return;
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      addSystem('Немає з’єднання з сервером');
+      return;
+    }
+
+    socket.send(text);
+    input.value = '';
+  }
+
+  document.getElementById('sendBtn').addEventListener('click', sendMessage);
+  document.getElementById('messageInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendMessage();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      document.title = originalTitle;
+    }
+  });
+
+  // стартове підключення
+  connect();
+
+  </script>
+</body>
+</html>
